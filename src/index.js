@@ -18,6 +18,36 @@ app.listen(PORT, () => {
 
 const { runInit } = require('./worker.js')
 const { compressAsync, decompressAsync } = require('./graphCompressor');
+
+//
+
+const envDecrypt = require('./FallbackEncryption/envDecrypt.js')
+async function uploadToDropbox(gzBuffer, filename = 'graph.gz') {
+  const dropboxToken = envDecrypt(process.env.workerKey, process.env.dropboxToken);
+  const res = await fetch('https://content.dropboxapi.com/2/files/upload', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + dropboxToken,
+      'Dropbox-API-Arg': JSON.stringify({
+        path: `/${filename}`,
+        mode: 'overwrite',
+        autorename: false,
+        mute: false
+      }),
+      'Content-Type': 'application/octet-stream'
+    },
+    body: gzBuffer
+  });
+
+  if (!res.ok) {
+    throw new Error(`Dropbox upload failed: ${await res.text()}`);
+  }
+
+  return res.json();
+}
+
+//
+
 async function startWorker() {
     while (true) {
         const { nodes, edges } = await runInit();

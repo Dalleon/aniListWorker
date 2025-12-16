@@ -21,7 +21,7 @@ const { compressAsync, decompressAsync } = require('./graphCompressor');
 async function startWorker() {
     while (true) {
         const { nodes, edges } = await runInit();
-        console.log(nodes, edges);
+        //console.log(nodes, edges);
 
         try {
           const gzBuffer = await compressAsync(nodes, edges);

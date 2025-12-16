@@ -17,10 +17,21 @@ app.listen(PORT, () => {
 });
 
 const { runInit } = require('./worker.js')
+const { compressAsync, decompressAsync } = require('./graphCompressor');
 async function startWorker() {
     while (true) {
         const { nodes, edges } = await runInit();
         console.log(nodes, edges);
+
+        try {
+          const gzBuffer = await compressAsync(nodes, edges);
+          console.log('Compressed bytes:', gzBuffer.length);
+
+          const { nodes: n2, edges: e2 } = await decompressAsync(gzBuffer);
+          console.log('Restored:', n2.size, e2.size);
+        } catch (err) {
+          console.warn(err)
+        }
     }
 }
 

@@ -5,7 +5,7 @@ const DELAY_MS = 700;
 const QUERY = `query($page:Int,$perPage:Int){
   Page(page:$page,perPage:$perPage){
     pageInfo { hasNextPage }
-    media {
+    media(type: ANIME){
       id
       title { romaji english }
       recommendations { edges { node { mediaRecommendation { id title { romaji } } } } }

@@ -16,10 +16,10 @@ app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
 
-const { start } = require('./worker.js')
+const { runInit } = require('./worker.js')
 async function startWorker() {
     while (true) {
-        const { nodes, edges } = await start();
+        const { nodes, edges } = await runInit();
         console.log(nodes, edges);
     }
 }

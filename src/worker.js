@@ -148,11 +148,11 @@ async function crawlAll({ perPage = PER_PAGE } = {}) {
     return { nodes, edges };
 }
 
-async function start() {
+async function runInit() {
     const { nodes, edges } = await crawlAll();
-    return nodes, edges
+    return { nodes, edges }
 }
 
 module.exports = {
-    start
+    runInit
 }

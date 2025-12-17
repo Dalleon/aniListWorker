@@ -5,7 +5,7 @@ const firestore = getFirestore(app);
 const collection = firestore.collection("def"); 
 const docRef = collection.doc("anime")
 
-async function upload(ata) {
+async function upload(data) {
   try {
     await docRef.set(data);
     console.log("set date...")

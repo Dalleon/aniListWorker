@@ -1,6 +1,6 @@
 {
   "name": "anilistworker",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "worker using anilist graphql api",
   "main": "server.js",
   "scripts": {
@@ -9,7 +9,8 @@
   "dependencies": {
     "express": "^5.0.1",
     "node-fetch": "3.3.2",
-    "dotenv": "^16.1.4"
+    "dotenv": "^16.1.4",
+    "firebase-admin": "^12.2.0"
   },
   "engines": {
     "node": "18.x"

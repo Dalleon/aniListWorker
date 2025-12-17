@@ -21,33 +21,10 @@ const { compressAsync, decompressAsync } = require('./graphCompressor');
 
 //
 
-const envDecrypt = require('./FallbackEncryption/envDecrypt.js')
-async function uploadToDropbox(gzBuffer, filename = 'graph.gz') {
-  const dropboxToken = envDecrypt(process.env.workerKey, process.env.dropboxToken);
-  const res = await fetch('https://content.dropboxapi.com/2/files/upload', {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Bearer ' + dropboxToken,
-      'Dropbox-API-Arg': JSON.stringify({
-        path: `/${filename}`,
-        mode: 'overwrite',
-        autorename: false,
-        mute: false
-      }),
-      'Content-Type': 'application/octet-stream'
-    },
-    body: gzBuffer
-  });
-
-  if (!res.ok) {
-    throw new Error(`Dropbox upload failed: ${await res.text()}`);
-  }
-
-  return res.json();
+const { upload } = require('./firebase/mainfdb.js')
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
-
-//
-
 async function startWorker() {
     while (true) {
         const { nodes, edges } = await runInit();
@@ -57,14 +34,18 @@ async function startWorker() {
           const gzBuffer = await compressAsync(nodes, edges);
           console.log('Compressed bytes:', gzBuffer.length);
 
-          const uploadRes = await uploadToDropbox(gzBuffer);
-          console.log("upload res: ", uploadRes)
+          const base64Data = gzBuffer.toString('base64');
+          await upload({ data: base64Data });
+          console.log("uploaded")
 
           const { nodes: n2, edges: e2 } = await decompressAsync(gzBuffer);
           console.log('Restored:', n2.size, e2.size);
         } catch (err) {
           console.warn(err)
         }
+
+        await sleep(1000);
+        
     }
 }
 

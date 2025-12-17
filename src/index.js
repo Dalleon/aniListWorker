@@ -58,7 +58,7 @@ async function startWorker() {
           console.log('Compressed bytes:', gzBuffer.length);
 
           const uploadRes = await uploadToDropbox(gzBuffer);
-          console.log(uploadRes)
+          console.log("upload res: ", uploadRes)
 
           const { nodes: n2, edges: e2 } = await decompressAsync(gzBuffer);
           console.log('Restored:', n2.size, e2.size);

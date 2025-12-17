@@ -34,11 +34,13 @@ async function startWorker() {
           const gzBuffer = await compressAsync(nodes, edges);
           console.log('Compressed bytes:', gzBuffer.length);
 
-          const chunkSize = 800 * 1024; // 800 KB raw
+          const chunkSize = 100 * 1024; // 100 KB raw
           const chunks = {};
           let chunkIndex = 1;
           for (let i = 0; i < gzBuffer.length; i += chunkSize) {
-            const chunk = gzBuffer.slice(i, i + chunkSize).toString('base64');
+            const rawChunk = gzBuffer.slice(i, i + chunkSize);
+            console.log("chunk", i, rawChunk.length);
+            const chunk = rawChunk.toString('base64');
             chunks[`data${chunkIndex}`] = chunk;
             chunkIndex++;
           }

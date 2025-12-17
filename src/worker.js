@@ -7,8 +7,15 @@ const QUERY = `query($page:Int,$perPage:Int){
     pageInfo { hasNextPage }
     media(type: ANIME){
       id
-      title { romaji english }
-      recommendations { edges { node { mediaRecommendation { id title { romaji } } } } }
+      title { english }
+      recommendations {
+        edges {
+          node {
+            rating
+            mediaRecommendation { id title { english } }
+          }
+        }
+      }
     }
   }
 }`;
@@ -82,16 +89,24 @@ async function fetchPage(page, perPage = PER_PAGE) {
     }
 }
 
-function processMediaList(mediaList, nodes, edges) {
-    //console.log(mediaList)
+function processMediaList(mediaList, nodes, edgesMap) {
     for (const m of mediaList) {
-        nodes.set(m.id, { id: m.id, title: m.title?.romaji || m.title?.english || "" });
+        nodes.set(m.id, { id: m.id, title: m.title?.english || "" });
+
         const recs = m.recommendations?.edges || [];
         for (const e of recs) {
             const to = e.node?.mediaRecommendation?.id;
             if (!to) continue;
-            nodes.set(to, { id: to, title: e.node.mediaRecommendation.title?.romaji || "" });
-            edges.add(`${m.id},${to}`);
+
+            const mediaRecom = e.node.mediaRecommendation;
+            nodes.set(to, { id: to, title: mediaRecom.title?.english || "" });
+
+            // read recommendation rating (weight) from the recommendation node
+            const rating = Number(e.node.rating) || 0;
+
+            const key = `${m.id},${to}`; // directed edge key
+            const prev = edgesMap.get(key) || 0;
+            edgesMap.set(key, prev + rating);
         }
     }
 }
@@ -107,9 +122,10 @@ function bytesOfString(str) {
   return str.length;
 }
 
-function combinedSizeBytes(nodesMap, edgesSet) {
+function combinedSizeBytes(nodesMap, edgesMap) {
   const nodesJson = JSON.stringify(Array.from(nodesMap.entries()));
-  const edgesJson = JSON.stringify(Array.from(edgesSet));
+  // edgesMap is Map<"from,to", weight>
+  const edgesJson = JSON.stringify(Array.from(edgesMap.entries()));
   return bytesOfString(nodesJson) + bytesOfString(edgesJson);
 }
 
@@ -120,7 +136,7 @@ function bytesToMB(bytes) {
 
 async function crawlAll({ perPage = PER_PAGE } = {}) {
     const nodes = new Map();
-    const edges = new Set();
+    const edges = new Map(); // Map<"from,to", number-weight>
     let page = 1;
 
     while (true) {
@@ -134,7 +150,10 @@ async function crawlAll({ perPage = PER_PAGE } = {}) {
             const combinedBytes = combinedSizeBytes(nodes, edges);
             const combinedMB = bytesToMB(combinedBytes);
 
-            console.log(`page ${page} -> nodes=${nodes.size} edges=${edges.size} combined=${combinedMB.toFixed(2)} MB`);
+            // compute total weight sum for logging
+            const totalWeight = Array.from(edges.values()).reduce((a, b) => a + b, 0);
+
+            console.log(`page ${page} -> nodes=${nodes.size} edges=${edges.size} totalWeight=${totalWeight.toFixed(0)} combined=${combinedMB.toFixed(2)} MB`);
 
             if (!pageData.pageInfo.hasNextPage) break;
             page++;

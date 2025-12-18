@@ -170,10 +170,7 @@ async function crawlAll({ perPage = PER_PAGE } = {}) {
             const combinedBytes = combinedSizeBytes(nodes, edges);
             const combinedMB = bytesToMB(combinedBytes);
 
-            // compute total weight sum for logging
-            const totalWeight = Array.from(edges.values()).reduce((a, b) => a + b, 0);
-
-            console.log(`page ${page} -> nodes=${nodes.size} edges=${edges.size} totalWeight=${totalWeight.toFixed(0)} combined=${combinedMB.toFixed(2)} MB`);
+            console.log(`pg${page} -> nodes=${nodes.size} edges=${edges.size} combined=${combinedMB.toFixed(2)} MB`);
 
             if (!pageData.pageInfo.hasNextPage) break;
             page++;

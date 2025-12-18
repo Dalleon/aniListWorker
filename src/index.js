@@ -25,28 +25,31 @@ const { upload } = require('./firebase/mainfdb.js')
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+//const { startVis } = require('./initVisual.js')
 async function startWorker() {
-    while (true) {
-        const { nodes, edges } = await runInit();
-        //console.log(nodes, edges);
+  while (true) {
+    //await startVis();
 
-        try {
-          const gzBuffer = await compressAsync(nodes, edges);
-          console.log('Compressed bytes:', gzBuffer.length);
+    const { nodes, edges } = await runInit();
+    //console.log(nodes, edges);
 
-          await upload(gzBuffer);
+    try {
+      const gzBuffer = await compressAsync(nodes, edges);
+      console.log('Compressed bytes:', gzBuffer.length);
+
+      await upload(gzBuffer);
           
-          console.log("uploaded")
+      console.log("uploaded")
 
-          //const { nodes: n2, edges: e2 } = await decompressAsync(gzBuffer);
-          //console.log('Restored:', n2.size, e2.size);
-        } catch (err) {
-          console.warn(err)
-        }
-
-        await sleep(1000);
-        
+      //const { nodes: n2, edges: e2 } = await decompressAsync(gzBuffer);
+      //console.log('Restored:', n2.size, e2.size);
+    } catch (err) {
+      console.warn(err)
     }
+
+    await sleep(1000);
+  }
 }
 
 startWorker();

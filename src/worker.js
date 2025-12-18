@@ -6,12 +6,13 @@ const QUERY = `query($page:Int,$perPage:Int){
     pageInfo { hasNextPage }
     media(type: ANIME){
       id
-      title { english romaji }
+      genres
+      title { english romaji native }
       recommendations {
         edges {
           node {
             rating
-            mediaRecommendation { id title { english romaji } }
+            mediaRecommendation { id genres title { english romaji native } }
           }
         }
       }
@@ -88,12 +89,16 @@ async function fetchPage(page, perPage = PER_PAGE) {
 }
 
 function getTitle(m) {
-    return m.title?.english || m.title?.romanji || ""
+    return m.title?.english || m.title?.romanji || m.title?.native || ""
 }
 
 function processMediaList(mediaList, nodes, edgesMap) {
     for (const m of mediaList) {
-        nodes.set(m.id, { id: m.id, title: getTitle(m) });
+        nodes.set(m.id, {
+            id: m.id,
+            genre: m.genres,
+            title: getTitle(m)
+        });
 
         const recs = m.recommendations?.edges || [];
         for (const e of recs) {
@@ -101,14 +106,18 @@ function processMediaList(mediaList, nodes, edgesMap) {
             if (!to) continue;
 
             const mediaRecom = e.node.mediaRecommendation;
-            nodes.set(to, { id: to, title: getTitle(mediaRecom) });
+            nodes.set(to, {
+                id: to,
+                genre: mediaRecom.genres,
+                title: getTitle(mediaRecom)
+            });
 
             // read recommendation rating (weight) from the recommendation node
             const rating = Number(e.node.rating) || 0;
 
             const key = [m.id, to].map(String).sort().join(',');
-            const prev = edgesMap.get(key) || 0;
-            edgesMap.set(key, prev + rating);
+            //const prev = edgesMap.get(key) || 0;
+            edgesMap.set(key, rating);
         }
     }
 }

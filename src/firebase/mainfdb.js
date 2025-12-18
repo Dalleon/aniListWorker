@@ -1,4 +1,3 @@
-// chunkedUpload.js
 const { getFirestore, getApp } = require('./firebaseUtils');
 const app = getApp(process.env.firedb, "default");
 const firestore = getFirestore(app);

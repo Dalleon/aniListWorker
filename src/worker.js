@@ -1,18 +1,17 @@
 const ANILIST = "https://graphql.anilist.co";
 const PER_PAGE = 50;
-const DELAY_MS = 700;
 
 const QUERY = `query($page:Int,$perPage:Int){
   Page(page:$page,perPage:$perPage){
     pageInfo { hasNextPage }
     media(type: ANIME){
       id
-      title { english }
+      title { english romaji }
       recommendations {
         edges {
           node {
             rating
-            mediaRecommendation { id title { english } }
+            mediaRecommendation { id title { english romaji } }
           }
         }
       }
@@ -27,7 +26,6 @@ async function fetchPage(page, perPage = PER_PAGE) {
     while (true) {
         attempt++;
         try {
-            //await sleep(DELAY_MS);
             const res = await fetch(ANILIST, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -89,9 +87,13 @@ async function fetchPage(page, perPage = PER_PAGE) {
     }
 }
 
+function getTitle(m) {
+    return m.title?.english || m.title?.romanji || ""
+}
+
 function processMediaList(mediaList, nodes, edgesMap) {
     for (const m of mediaList) {
-        nodes.set(m.id, { id: m.id, title: m.title?.english || "" });
+        nodes.set(m.id, { id: m.id, title: getTitle(m) });
 
         const recs = m.recommendations?.edges || [];
         for (const e of recs) {
@@ -99,12 +101,12 @@ function processMediaList(mediaList, nodes, edgesMap) {
             if (!to) continue;
 
             const mediaRecom = e.node.mediaRecommendation;
-            nodes.set(to, { id: to, title: mediaRecom.title?.english || "" });
+            nodes.set(to, { id: to, title: getTitle(mediaRecom) });
 
             // read recommendation rating (weight) from the recommendation node
             const rating = Number(e.node.rating) || 0;
 
-            const key = `${m.id},${to}`; // directed edge key
+            const key = [m.id, to].map(String).sort().join(',');
             const prev = edgesMap.get(key) || 0;
             edgesMap.set(key, prev + rating);
         }

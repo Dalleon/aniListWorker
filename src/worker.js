@@ -7,6 +7,7 @@ const QUERY = `query($page:Int,$perPage:Int){
     media(type: ANIME){
       id
       genres
+      seasonYear
       description
       bannerImage
       title { english romaji native }
@@ -14,7 +15,7 @@ const QUERY = `query($page:Int,$perPage:Int){
         edges {
           node {
             rating
-            mediaRecommendation { id genres description bannerImage title { english romaji native } }
+            mediaRecommendation { id genres seasonYear description bannerImage title { english romaji native } }
           }
         }
       }
@@ -99,6 +100,7 @@ function processMediaList(mediaList, nodes, edgesMap) {
         nodes.set(m.id, {
             id: m.id,
             genre: m.genres,
+            year: m.seasonYear,
             desc: m.description,
             img: m.bannerImage,
             title: getTitle(m)
@@ -113,6 +115,7 @@ function processMediaList(mediaList, nodes, edgesMap) {
             nodes.set(to, {
                 id: to,
                 genre: mediaRecom.genres,
+                year: mediaRecom.seasonYear,
                 desc: mediaRecom.description,
                 img: mediaRecom.bannerImage,
                 title: getTitle(mediaRecom)

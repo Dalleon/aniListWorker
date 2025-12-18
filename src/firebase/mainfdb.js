@@ -42,6 +42,43 @@ async function upload(buf, chunkSize = DEFAULT_CHUNK_SIZE) {
   return { totalBytes, chunkCount };
 }
 
+
+const coordsRef = firestore.collection('def').doc('animeCoords');
+async function uploadCoords(buf, chunkSize = DEFAULT_CHUNK_SIZE) {
+  const totalBytes = buf.length;
+  const chunkCount = Math.ceil(totalBytes / chunkSize);
+
+  // meta
+  await coordsRef.set({
+    totalBytes,
+    chunkSize,
+    chunkCount,
+    uploadedAt: new Date()
+  });
+
+  // write chunks in batches
+  let batch = firestore.batch();
+  let writes = 0;
+  for (let i = 0; i < chunkCount; i++) {
+    const start = i * chunkSize;
+    const end = Math.min(start + chunkSize, totalBytes);
+    const slice = buf.slice(start, end);
+
+    const chunkRef = coordsRef.collection('chunks').doc(String(i).padStart(6, '0'));
+    batch.set(chunkRef, { index: i, bytes: slice, length: slice.length });
+
+    writes++;
+    if (writes === BATCH_LIMIT) {
+      await batch.commit();
+      batch = firestore.batch();
+      writes = 0;
+    }
+  }
+  if (writes > 0) await batch.commit();
+
+  return { totalBytes, chunkCount };
+}
+
 async function downloadAsBase64() {
   const metaSnap = await parentRef.get();
   if (!metaSnap.exists) throw new Error('Document metadata not found');
@@ -52,4 +89,4 @@ async function downloadAsBase64() {
   return assembled.toString('base64');
 }
 
-module.exports = { upload, downloadAsBase64 };
+module.exports = { upload, downloadAsBase64, uploadCoords };

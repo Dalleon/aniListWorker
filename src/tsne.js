@@ -1,69 +1,109 @@
-const PCA = require('ml-pca').PCA;
-const tsnejs = require('tsne-js');
+const UMAPpkg = require('umap-js');
+const UMAP = UMAPpkg.UMAP
 
-function adjacencyDenseFlat(nodesMap, edgesMap, { useWeights = true, binary = false } = {}) {
+function embedFromEdges(
+  nodesMap,
+  edgesMap,
+  {
+    dim = 64,
+    useWeights = true,
+    binary = false,
+  } = {}
+) {
   const ids = Array.from(nodesMap.keys());
-  const idxOf = new Map(ids.map((id, i) => [String(id), i]));
+  const idx = new Map(ids.map((id, i) => [String(id), i]));
   const N = ids.length;
 
-  // single contiguous buffer (MUCH less overhead)
-  const data = new Float32Array(N * N);
+  const X = Array.from({ length: N }, () => new Float32Array(dim));
+  const scale = 1 / Math.sqrt(dim);
 
   for (const [key, w] of edgesMap.entries()) {
     const comma = key.indexOf(',');
-    const aStr = key.slice(0, comma);
-    const bStr = key.slice(comma + 1);
-    const ai = idxOf.get(aStr);
-    const bi = idxOf.get(bStr);
-    if (ai == null || bi == null) continue;
+    const a = idx.get(key.slice(0, comma));
+    const b = idx.get(key.slice(comma + 1));
+    if (a == null || b == null) continue;
 
-    const weight = binary ? 1 : (useWeights ? (Number(w) || 0) : 1);
-    data[ai * N + bi] = weight;
-    data[bi * N + ai] = weight;
+    const weight = binary
+      ? 1
+      : (useWeights ? (Number(w) || 1) : 1);
+
+    const sign = Math.random() < 0.5 ? -scale : scale;
+
+    const xa = X[a];
+    const xb = X[b];
+
+    for (let d = 0; d < dim; d++) {
+      const v = sign * weight;
+      xa[d] += v;
+      xb[d] += v;
+    }
   }
 
-  return { ids, data, N };
+  return {
+    ids,
+    data: X.map(v => Array.from(v)), // JS arrays for downstream libs
+  };
 }
 
-async function tsneFromAdjDense(nodesMap, edgesMap, {
-  pcaComponents = 50,
-  tsneIter = 800,
-  perplexity = 30,
+async function tsneFromGraph(nodesMap, edgesMap, {
+  embedDim = 64,       // kept for compatibility with embedFromEdges
+  nNeighbors = 15,     // approx analogous to perplexity
+  minDist = 0.1,
+  nIter = 500,         // number of epochs for UMAP
 } = {}) {
-  console.log('building dense adjacency');
-  const { ids, data, N } = adjacencyDenseFlat(nodesMap, edgesMap);
-
-  const nComp = Math.min(pcaComponents, N - 1);
-  console.log('PCA components:', nComp);
-
-  // ml-pca still wants rows → we give views, not copies
-  const rows = Array.from({ length: N }, (_, i) =>
-    data.subarray(i * N, (i + 1) * N)
-  );
-
-  console.log("rows for pca ready")
-
-  const pca = new PCA(rows, {
-    method: 'NIPALS',
-    nCompNIPALS: 50,
-    center: true,
-    scale: false,
+  console.log('embedding graph (edge-sum vectors)');
+  const { ids, data } = embedFromEdges(nodesMap, edgesMap, {
+    dim: embedDim
   });
 
-  console.log("reducing...")
+  if (!data || data.length === 0) {
+    return {};
+  }
 
-  const reduced = pca.predict(rows, { nComponents: nComp }).to2DArray();
+  console.log('running UMAP (umap-js)', data.length);
+  // create UMAP instance — many versions accept these options, but we guard
+  const umap = new UMAP({
+    nComponents: 2,
+    nNeighbors,
+    minDist,
+    nEpochs: nIter,
+  });
 
-  console.log('running t-SNE');
-  const model = new tsnejs.tSNE({ dim: 2, perplexity });
-  model.initDataRaw(reduced);
+  console.log("umap initialize, fitting")
 
-  for (let i = 0; i < tsneIter; i++) model.step();
+  umap.initializeFit(data);
 
-  const Y = model.getSolution();
+  console.log("initialized")
+
+  for (let epoch = 0; epoch < nIter; epoch++) {
+    umap.step();
+    console.log(`UMAP epoch ${epoch + 1}/${nIter}`);
+  }
+
+  const Y = umap.getEmbedding();
+  console.log("embedding done", Y.length)
+  console.log("scaling...")
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of Y) {
+    if (p[0] < minX) minX = p[0];
+    if (p[0] > maxX) maxX = p[0];
+    if (p[1] < minY) minY = p[1];
+    if (p[1] > maxY) maxY = p[1];
+  }
+  const spanX = (maxX - minX) || 1;
+  const spanY = (maxY - minY) || 1;
+
   const coords = {};
-  ids.forEach((id, i) => (coords[id] = { x: Y[i][0], y: Y[i][1] }));
+  ids.forEach((id, i) => {
+    coords[id] = {
+      x: (Y[i][0] - minX) / spanX,
+      y: (Y[i][1] - minY) / spanY,
+    };
+  });
+
   return coords;
 }
 
-module.exports = { tsneFromAdjDense };
+module.exports = {
+  tsneFromGraph
+};

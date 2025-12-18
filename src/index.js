@@ -26,10 +26,10 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-const { startVis } = require('./initVisual.js')
+//const { startVis } = require('./initVisual.js')
 async function startWorker() {
   while (true) {
-    await startVis();
+    //await startVis();
 
     const { nodes, edges } = await runInit();
     //console.log(nodes, edges);

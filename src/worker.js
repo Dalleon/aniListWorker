@@ -10,12 +10,14 @@ const QUERY = `query($page:Int,$perPage:Int){
       seasonYear
       description
       bannerImage
+      averageScore
+      meanScore
       title { english romaji native }
       recommendations {
         edges {
           node {
             rating
-            mediaRecommendation { id genres seasonYear description bannerImage title { english romaji native } }
+            mediaRecommendation { id genres seasonYear description bannerImage averageScore meanScore title { english romaji native } }
           }
         }
       }
@@ -103,6 +105,8 @@ function processMediaList(mediaList, nodes, edgesMap) {
             year: m.seasonYear,
             desc: m.description,
             img: m.bannerImage,
+            avg: m.averageScore,
+            mean: m.meanScore,
             title: getTitle(m)
         });
 
@@ -118,6 +122,8 @@ function processMediaList(mediaList, nodes, edgesMap) {
                 year: mediaRecom.seasonYear,
                 desc: mediaRecom.description,
                 img: mediaRecom.bannerImage,
+                avg: mediaRecom.averageScore,
+                mean: mediaRecom.meanScore,
                 title: getTitle(mediaRecom)
             });
 

@@ -4,7 +4,7 @@
   "description": "worker using anilist graphql api",
   "main": "server.js",
   "scripts": {
-    "start": "node ./src/index.js"
+    "start": "node --max-old-space-size=8192 ./src/index.js"
   },
   "dependencies": {
     "umap-js": "1.4.0",

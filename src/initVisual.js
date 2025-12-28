@@ -77,37 +77,20 @@ async function decompressBase64ToObjects(base64Str) {
 
 //
 
-function serializeForJson(value) {
-  if (value instanceof Map) {
-    return { __type: 'Map', value: Array.from(value.entries()).map(([k, v]) => [k, serializeForJson(v)]) };
-  }
-  if (value instanceof Set) {
-    return { __type: 'Set', value: Array.from(value.values()).map(serializeForJson) };
-  }
-  if (Array.isArray(value)) {
-    return value.map(serializeForJson);
-  }
-  if (value && typeof value === 'object') {
-    const out = {};
-    for (const [k, v] of Object.entries(value)) out[k] = serializeForJson(v);
-    return out;
-  }
-  return value;
-}
-
 const { tsneFromGraph } = require('./tsne.js')
 
 async function startVis() {
     const b64 = await downloadAsBase64()
     const { nodes, edges } = await decompressBase64ToObjects(b64);
     console.log("starting tsne")
-    const coords = tsneFromGraph(nodes, edges);
-    //console.log(coords)
+    const coords = await tsneFromGraph(nodes, edges);
 
-    const serialized = serializeForJson(coords);
+    console.log("serializing coords..", typeof(coords))
 
     // JSON stringify and gzip
-    const jsonStr = JSON.stringify(serialized);
+    const jsonStr = JSON.stringify(coords);
+
+    //console.log(jsonStr)
     const gzBuffer = await gzip(Buffer.from(jsonStr, 'utf8'));
 
     // upload gzipped buffer

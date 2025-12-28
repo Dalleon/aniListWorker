@@ -1,60 +1,118 @@
-const UMAPpkg = require('umap-js');
-const UMAP = UMAPpkg.UMAP
-
 function embedFromEdges(
   nodesMap,
   edgesMap,
-  {
-    dim = 64,
-    useWeights = true,
-    binary = false,
-  } = {}
+  dim,
 ) {
   const ids = Array.from(nodesMap.keys());
   const idx = new Map(ids.map((id, i) => [String(id), i]));
   const N = ids.length;
 
-  const X = Array.from({ length: N }, () => new Float32Array(dim));
-  const scale = 1 / Math.sqrt(dim);
+  // small random init to break symmetry
+  const X = Array.from({ length: N }, () => {
+    const arr = new Float32Array(dim);
+    for (let d = 0; d < dim; d++) arr[d] = (Math.random() - 0.5) * 1e-3;
+    return arr;
+  });
 
-  for (const [key, w] of edgesMap.entries()) {
-    const comma = key.indexOf(',');
-    const a = idx.get(key.slice(0, comma));
-    const b = idx.get(key.slice(comma + 1));
-    if (a == null || b == null) continue;
+  // hyperparams you can tune
+  const epochs = 600;           // more epochs = stronger convergence , 150
+  let lr = 0.12;                // learning rate (per-edge)
+  const lrDecay = 0.995;        // decay lr each epoch
+  
+  const weightPower = 0.9;
+  const centerEvery = 5;       // mean-center every few epochs
+  const shrink = 0.999;        // tiny shrink to stabilize magnitudes
+  const eps = 1e-8;
 
-    const weight = binary
-      ? 1
-      : (useWeights ? (Number(w) || 1) : 1);
+  // convert edgesMap entries to array for faster iteration
+  let edges = Array.from(edgesMap.entries())
+    .map(([k, w]) => {
+      const comma = k.indexOf(',');
+      const a = idx.get(k.slice(0, comma));
+      const b = idx.get(k.slice(comma + 1));
 
-    const sign = Math.random() < 0.5 ? -scale : scale;
+      const sign = Math.sign(w);
+      const weight = sign * Math.pow(Math.abs(w), weightPower);
+      //console.log(weight)
 
-    const xa = X[a];
-    const xb = X[b];
+      return (a == null || b == null) ? null : { a, b, weight };
+    })
+    .filter(Boolean);
 
-    for (let d = 0; d < dim; d++) {
-      const v = sign * weight;
-      xa[d] += v;
-      xb[d] += v;
+  // normalize
+  const weights = edges.map(e => e.weight);
+  const minWeight = Math.min(...weights);
+  const maxWeight = Math.max(...weights);
+
+  edges = edges.map(e => {
+    let normWeight = (e.weight - minWeight) / (maxWeight - minWeight);
+    return { ...e, weight: normWeight * 128 };
+  });
+
+  for (let epoch = 0; epoch < epochs; epoch++) {
+    console.log("epoch:", epoch, lr)
+    // shuffle edges each epoch to avoid order bias (Fisher-Yates)
+    for (let i = edges.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = edges[i]; edges[i] = edges[j]; edges[j] = tmp;
     }
+
+    for (const { a, b, weight } of edges) {
+      const xa = X[a];
+      const xb = X[b];
+
+      // move both towards midpoint: step = lr * weight * (xb - xa) / 2
+      for (let d = 0; d < dim; d++) {
+        const diff = xb[d] - xa[d];
+        const step = 0.5 * lr * weight * diff;
+        xa[d] += step;
+        xb[d] -= step; // note: subtracting here moves xb toward xa
+      }
+    }
+
+    // tiny shrink to keep numbers stable
+    for (let i = 0; i < N; i++) {
+      const xi = X[i];
+      for (let d = 0; d < dim; d++) xi[d] *= shrink;
+    }
+
+    // mean-center periodicly to prevent drifting far from origin
+    if ((epoch % centerEvery) === 0) {
+      const mean = new Float32Array(dim);
+      for (let i = 0; i < N; i++) {
+        const xi = X[i];
+        for (let d = 0; d < dim; d++) mean[d] += xi[d];
+      }
+      for (let d = 0; d < dim; d++) mean[d] /= Math.max(1, N);
+
+      for (let i = 0; i < N; i++) {
+        const xi = X[i];
+        for (let d = 0; d < dim; d++) xi[d] -= mean[d];
+      }
+    }
+
+    lr *= lrDecay;
   }
 
   return {
     ids,
-    data: X.map(v => Array.from(v)), // JS arrays for downstream libs
+    data: X.map(v => Array.from(v)),
   };
 }
 
+
+//
+
+const UMAPpkg = require('umap-js');
+const UMAP = UMAPpkg.UMAP
 async function tsneFromGraph(nodesMap, edgesMap, {
-  embedDim = 64,       // kept for compatibility with embedFromEdges
-  nNeighbors = 15,     // approx analogous to perplexity
-  minDist = 0.1,
+  embedDim = 256,      // kept for compatibility with embedFromEdges
+  nNeighbors = 60,     // approx analogous to perplexity
+  minDist = 0.04,
   nIter = 500,         // number of epochs for UMAP
 } = {}) {
   console.log('embedding graph (edge-sum vectors)');
-  const { ids, data } = embedFromEdges(nodesMap, edgesMap, {
-    dim: embedDim
-  });
+  const { ids, data } = embedFromEdges(nodesMap, edgesMap, embedDim);
 
   if (!data || data.length === 0) {
     return {};
@@ -67,6 +125,9 @@ async function tsneFromGraph(nodesMap, edgesMap, {
     nNeighbors,
     minDist,
     nEpochs: nIter,
+    spread: 1,
+    repulsionStrength: 1,
+    //negativeSampleRate: 10,
   });
 
   console.log("umap initialize, fitting")

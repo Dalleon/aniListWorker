@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Infinite World Demo with Zoom</title>
+    <style>
+        canvas {
+            border: 1px solid #333;
+            cursor: pointer;
+            display: block;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <script type="module">
+        import Body from './Body.js';
+        import BlockGrid from './BlockGrid.js';
+        import World from './World.js';
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        const world = new World();
+        const body = new BlockGrid();
+        body.placeBlock(0, 0);
+        body.placeBlock(0, 1);
+        body.posX = 0;
+        body.posY = 0;
+        body.veloX = 4;
+        world.addBody(body);
+
+        // --- Camera ---
+        class Camera {
+            constructor(x = 0, y = 0, scale = 1) {
+                this.x = x;
+                this.y = y;
+                this.scale = scale;
+            }
+        }
+
+        const camera = new Camera(0, 0, 1);
+
+        let draggingBody = false;
+        let draggingCamera = false;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+
+        // --- Mouse Events ---
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const worldX = camera.x + mouseX / camera.scale;
+            const worldY = camera.y + mouseY / camera.scale;
+
+            if (e.button === 0) {
+                if (worldX >= body.posX - 64 && worldX <= body.posX + 64 &&
+                    worldY >= body.posY - 64 && worldY <= body.posY + 64) {
+                    draggingBody = true;
+                    dragOffsetX = worldX - body.posX;
+                    dragOffsetY = worldY - body.posY;
+                }
+            }
+
+            if (e.button === 2) {
+                draggingCamera = true;
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            draggingBody = false;
+            draggingCamera = false;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const worldX = camera.x + mouseX / camera.scale;
+            const worldY = camera.y + mouseY / camera.scale;
+
+            if (draggingBody) {
+                body.posX = worldX - dragOffsetX;
+                body.posY = worldY - dragOffsetY;
+            }
+
+            if (draggingCamera) {
+                const deltaX = (e.clientX - lastMouseX) / camera.scale;
+                const deltaY = (e.clientY - lastMouseY) / camera.scale;
+
+                camera.x -= deltaX;
+                camera.y -= deltaY;
+
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+            }
+        });
+
+        // --- Zoom with mouse wheel ---
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const ZOOM_SPEED = 0.1;
+            const mouseX = e.clientX;
+            const mouseY = e.clientY;
+
+            const worldX = camera.x + mouseX / camera.scale;
+            const worldY = camera.y + mouseY / camera.scale;
+
+            if (e.deltaY < 0) {
+                camera.scale *= (1 + ZOOM_SPEED);
+            } else {
+                camera.scale /= (1 + ZOOM_SPEED);
+            }
+
+            camera.scale = Math.max(0.1, Math.min(camera.scale, 10));
+            camera.x = worldX - mouseX / camera.scale;
+            camera.y = worldY - mouseY / camera.scale;
+        });
+
+        // Prevent context menu
+        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        // --- Draw grid --
+        function drawGrid(ctx, camera, baseGridSize = 16) {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+
+    // grid layers
+    const layers = [
+        { size: baseGridSize, color: 'rgba(200,200,200,0.2)' },
+        { size: baseGridSize * 4, color: 'rgba(150,150,150,0.25)' },
+        { size: baseGridSize * 8, color: 'rgba(100,100,100,0.3)' }
+    ];
+
+    layers.forEach(layer => {
+        const scaledSize = layer.size * camera.scale; // grid spacing in screen pixels
+        const startX = Math.floor(-camera.x * camera.scale / scaledSize) * scaledSize;
+        const startY = Math.floor(-camera.y * camera.scale / scaledSize) * scaledSize;
+
+        ctx.strokeStyle = layer.color;
+        ctx.lineWidth = 1 * camera.scale; // line thickness grows with zoom
+
+        // vertical lines
+        for (let x = startX; x < width; x += scaledSize) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, height);
+            ctx.stroke();
+        }
+
+        // horizontal lines
+        for (let y = startY; y < height; y += scaledSize) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(width, y);
+            ctx.stroke();
+        }
+    });
+}
+
+
+        // --- Main loop ---
+        function loop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            drawGrid(ctx, camera);
+
+            ctx.save();
+            ctx.scale(camera.scale, camera.scale);
+            ctx.translate(-camera.x, -camera.y);
+            world.render(ctx);
+            ctx.restore();
+
+            world.update(1 / 60);
+
+            requestAnimationFrame(loop);
+        }
+
+        loop();
+    </script>
+</body>
+
+</html>

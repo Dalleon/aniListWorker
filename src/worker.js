@@ -30,6 +30,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function fetchPage(page, perPage = PER_PAGE) {
     let attempt = 0;
     while (true) {
+        await sleep(4000)
         attempt++;
         try {
             const res = await fetch(ANILIST, {
